@@ -191,27 +191,10 @@ function fmt_tanggal(string $iso): string
 <section class="relative pt-10 pb-12 sm:pt-16 sm:pb-20">
   <div class="mx-auto max-w-6xl px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-center">
     <div>
-      <span class="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-brand-700 shadow-sm ring-1 ring-brand-100">
-        <span class="h-2 w-2 rounded-full bg-brand-500 animate-pulse"></span>
-        Sistem Pendaftaran Pasien
-      </span>
-      <h1 class="mt-4 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+      <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
         Catat data pasien<br class="hidden sm:block">
         <span class="bg-gradient-to-r from-brand-600 to-cyan-600 bg-clip-text text-transparent">cepat &amp; rapi.</span>
       </h1>
-      <p class="mt-4 text-base sm:text-lg text-slate-600 max-w-xl">
-        <?= e($config['app_tagline']) ?>. Isi formulir di samping &mdash; data tersimpan otomatis di server lokal
-        dan, jika diaktifkan, juga ke Google Sheets.
-      </p>
-      <div class="mt-6 flex flex-wrap gap-3">
-        <a href="#form" class="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 transition">
-          Mulai Daftar
-          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-        </a>
-        <a href="#daftar" class="inline-flex items-center gap-2 rounded-full bg-white/80 px-5 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-white transition">
-          Lihat Riwayat
-        </a>
-      </div>
       <dl class="mt-8 grid grid-cols-3 gap-4 max-w-md">
         <div class="rounded-2xl bg-white/70 p-3 sm:p-4 ring-1 ring-white/60 shadow-sm">
           <dt class="text-xs text-slate-500">Total</dt>
@@ -242,10 +225,7 @@ function fmt_tanggal(string $iso): string
               <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
             </svg>
           </span>
-          <div>
-            <h2 class="text-lg font-bold text-slate-900">Form Pendaftaran</h2>
-            <p class="text-sm text-slate-500">Lengkapi data pasien di bawah ini.</p>
-          </div>
+          <h2 class="text-lg font-bold text-slate-900">Form Pendaftaran</h2>
         </div>
 
         <?php if (!empty($errors['_form'])): ?>
@@ -309,9 +289,6 @@ function fmt_tanggal(string $iso): string
             </svg>
             Simpan Data Pasien
           </button>
-          <p class="text-xs text-center text-slate-500">
-            Data tersimpan di <code class="text-slate-700">data/patients.json</code> &amp; <code class="text-slate-700">.csv</code>.
-          </p>
         </form>
       </div>
     </div>
@@ -322,10 +299,7 @@ function fmt_tanggal(string $iso): string
 <section id="daftar" class="pb-16 sm:pb-24">
   <div class="mx-auto max-w-6xl px-4 sm:px-6">
     <div class="flex items-end justify-between mb-5 gap-3">
-      <div>
-        <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Riwayat Pendaftaran</h2>
-        <p class="text-sm text-slate-500">Daftar pasien yang sudah tersimpan, paling baru di atas.</p>
-      </div>
+      <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Riwayat Pendaftaran</h2>
       <span class="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
         <?= count($records) ?> entri
       </span>
@@ -392,9 +366,8 @@ function fmt_tanggal(string $iso): string
 </section>
 
 <footer class="border-t border-white/60 bg-white/60 backdrop-blur">
-  <div class="mx-auto max-w-6xl px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-slate-500">
-    <p>&copy; <?= date('Y') ?> <?= e($config['app_name']) ?>. Semua hak dilindungi.</p>
-    <p>Dibangun dengan PHP &middot; data lokal di <code>data/</code></p>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 py-6 text-center text-sm text-slate-500">
+    &copy; <?= date('Y') ?> <?= e($config['app_name']) ?>
   </div>
 </footer>
 
