@@ -1,0 +1,20 @@
+# Storage data — jangan commit data pasien
+data/*.json
+data/*.csv
+!data/.gitkeep
+
+# Env / secrets
+.env
+.env.local
+
+# Logs
+*.log
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Vendor (kalau nanti pakai composer)
+vendor/
