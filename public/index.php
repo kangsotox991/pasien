@@ -15,6 +15,45 @@ if (empty($_SESSION['csrf'])) {
     $_SESSION['csrf'] = bin2hex(random_bytes(32));
 }
 
+if (($_GET['download'] ?? '') === 'txt') {
+    $rows = storage_read_all($config);
+    usort($rows, function ($a, $b) {
+        $cmp = strcmp((string)($a['tanggal'] ?? ''), (string)($b['tanggal'] ?? ''));
+        return $cmp !== 0 ? $cmp : strcmp((string)($a['created_at'] ?? ''), (string)($b['created_at'] ?? ''));
+    });
+    $lines  = [];
+    $months = [];
+    $bulan  = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    foreach ($rows as $r) {
+        $tgl = (string)($r['tanggal'] ?? '');
+        $d   = DateTime::createFromFormat('Y-m-d', $tgl);
+        $diag = preg_replace('/\s+/', ' ', trim((string)($r['diagnosa'] ?? '')));
+        $lines[] = sprintf(
+            '%s %s No. Reg %s dx: %s',
+            $d ? $d->format('d/m/Y') : $tgl,
+            (string)($r['nama'] ?? ''),
+            (string)($r['no_registrasi'] ?? ''),
+            $diag
+        );
+        if ($d) {
+            $months[$d->format('Y-m')] = $bulan[(int)$d->format('n') - 1] . '_' . $d->format('Y');
+        }
+    }
+    if (!$months) {
+        $filename = 'kosong.txt';
+    } else {
+        ksort($months);
+        $first = reset($months);
+        $last  = end($months);
+        $filename = ($first === $last ? $first : $first . '-' . $last) . '.txt';
+    }
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-store');
+    echo $lines ? implode("\n", $lines) . "\n" : '';
+    exit;
+}
+
 $old    = [];
 $errors = [];
 $flash  = $_SESSION['flash'] ?? null;
@@ -165,13 +204,26 @@ function fmt_tanggal(string $iso): string
     <nav class="hidden sm:flex items-center gap-6 text-sm font-medium text-slate-600">
       <a href="#form" class="hover:text-brand-700">Daftar Pasien</a>
       <a href="#daftar" class="hover:text-brand-700">Riwayat</a>
+      <a href="?download=txt" class="inline-flex items-center gap-1.5 hover:text-brand-700">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>
+        </svg>
+        Unduh
+      </a>
       <a href="#form" class="rounded-full bg-brand-600 px-4 py-2 text-white shadow-sm hover:bg-brand-700 transition">
         + Pasien Baru
       </a>
     </nav>
-    <a href="#form" class="sm:hidden rounded-full bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm">
-      + Pasien
-    </a>
+    <div class="sm:hidden flex items-center gap-2">
+      <a href="?download=txt" aria-label="Unduh" class="grid h-9 w-9 place-items-center rounded-full bg-white/80 ring-1 ring-slate-200 text-slate-700 shadow-sm">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>
+        </svg>
+      </a>
+      <a href="#form" class="rounded-full bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm">
+        + Pasien
+      </a>
+    </div>
   </div>
 </header>
 
