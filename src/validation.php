@@ -34,8 +34,10 @@ function validate_patient(array $input): array
     $noReg = trim((string)($input['no_registrasi'] ?? ''));
     if ($noReg === '') {
         $errors['no_registrasi'] = 'No. registrasi wajib diisi.';
-    } elseif (mb_strlen($noReg) > 50) {
-        $errors['no_registrasi'] = 'No. registrasi maksimal 50 karakter.';
+    } elseif (!preg_match('/^\d+$/', $noReg)) {
+        $errors['no_registrasi'] = 'No. registrasi hanya boleh berisi angka.';
+    } elseif (mb_strlen($noReg) > 20) {
+        $errors['no_registrasi'] = 'No. registrasi maksimal 20 digit.';
     }
     $cleaned['no_registrasi'] = $noReg;
 

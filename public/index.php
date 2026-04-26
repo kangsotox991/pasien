@@ -280,10 +280,13 @@ function fmt_tanggal(string $iso): string
 
           <div>
             <label for="no_registrasi" class="block text-sm font-semibold text-slate-700 mb-1.5">No. Registrasi</label>
-            <input id="no_registrasi" name="no_registrasi" type="text" required maxlength="50"
-                   placeholder="cth. REG-2026-0001"
+            <input id="no_registrasi" name="no_registrasi" type="text" required
+                   inputmode="numeric" pattern="\d+" maxlength="20"
+                   autocomplete="off" placeholder="cth. 20260001"
+                   title="Hanya angka"
                    value="<?= e($old['no_registrasi'] ?? '') ?>"
-                   class="field-input font-mono <?= isset($errors['no_registrasi']) ? 'error' : '' ?>">
+                   class="field-input font-mono tracking-wider <?= isset($errors['no_registrasi']) ? 'error' : '' ?>"
+                   oninput="this.value = this.value.replace(/\D+/g, '')">
             <?php if (isset($errors['no_registrasi'])): ?>
               <p class="mt-1 text-xs text-rose-600"><?= e($errors['no_registrasi']) ?></p>
             <?php endif; ?>
