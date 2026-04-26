@@ -13,7 +13,7 @@ return [
     'app_name'    => getenv('APP_NAME')    ?: 'Klinik Sehat Sentosa',
     'app_tagline' => getenv('APP_TAGLINE') ?: 'Layanan kesehatan terpercaya untuk keluarga Anda',
 
-    // Storage paths (relative to repo root)
+    // Storage paths (relative to project root, sibling of lib/)
     'data_dir'  => __DIR__ . '/../data',
     'json_file' => __DIR__ . '/../data/patients.json',
     'csv_file'  => __DIR__ . '/../data/patients.csv',

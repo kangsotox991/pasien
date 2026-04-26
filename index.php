@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/../src/storage.php';
-require __DIR__ . '/../src/validation.php';
-require __DIR__ . '/../src/gsheet.php';
+require __DIR__ . '/lib/storage.php';
+require __DIR__ . '/lib/validation.php';
+require __DIR__ . '/lib/gsheet.php';
 
-$config = require __DIR__ . '/../src/config.php';
+$config = require __DIR__ . '/lib/config.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
