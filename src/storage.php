@@ -91,3 +91,128 @@ function storage_append(array $config, array $record): array
 
     return $record;
 }
+
+/**
+ * Rewrite the CSV mirror from the current JSON state.
+ */
+function storage_rewrite_csv(array $config, array $records): void
+{
+    $fp = fopen($config['csv_file'], 'w');
+    if ($fp === false) {
+        return;
+    }
+    fputcsv($fp, PATIENT_CSV_HEADER);
+    foreach ($records as $r) {
+        fputcsv($fp, [
+            $r['id']            ?? '',
+            $r['created_at']    ?? '',
+            $r['tanggal']       ?? '',
+            $r['nama']          ?? '',
+            $r['no_registrasi'] ?? '',
+            $r['diagnosa']      ?? '',
+        ]);
+    }
+    fclose($fp);
+}
+
+/**
+ * Update an existing record by id. Returns the updated record, or null if not found.
+ */
+function storage_update(array $config, string $id, array $fields): ?array
+{
+    storage_ensure_files($config);
+
+    $fp = fopen($config['json_file'], 'c+');
+    if ($fp === false) {
+        throw new RuntimeException('Tidak dapat membuka file penyimpanan.');
+    }
+    if (!flock($fp, LOCK_EX)) {
+        fclose($fp);
+        throw new RuntimeException('Tidak dapat mengunci file penyimpanan.');
+    }
+
+    $updated = null;
+    try {
+        $contents = stream_get_contents($fp) ?: '[]';
+        $records  = json_decode($contents, true);
+        if (!is_array($records)) {
+            $records = [];
+        }
+        foreach ($records as &$r) {
+            if (($r['id'] ?? null) === $id) {
+                $r['tanggal']       = $fields['tanggal']       ?? $r['tanggal']       ?? '';
+                $r['nama']          = $fields['nama']          ?? $r['nama']          ?? '';
+                $r['no_registrasi'] = $fields['no_registrasi'] ?? $r['no_registrasi'] ?? '';
+                $r['diagnosa']      = $fields['diagnosa']      ?? $r['diagnosa']      ?? '';
+                $r['updated_at']    = date('c');
+                $updated = $r;
+                break;
+            }
+        }
+        unset($r);
+        if ($updated !== null) {
+            ftruncate($fp, 0);
+            rewind($fp);
+            fwrite($fp, json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n");
+            fflush($fp);
+        }
+    } finally {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+
+    if ($updated !== null) {
+        storage_rewrite_csv($config, $records);
+    }
+    return $updated;
+}
+
+/**
+ * Delete a record by id. Returns true if deleted, false if not found.
+ */
+function storage_delete(array $config, string $id): bool
+{
+    storage_ensure_files($config);
+
+    $fp = fopen($config['json_file'], 'c+');
+    if ($fp === false) {
+        throw new RuntimeException('Tidak dapat membuka file penyimpanan.');
+    }
+    if (!flock($fp, LOCK_EX)) {
+        fclose($fp);
+        throw new RuntimeException('Tidak dapat mengunci file penyimpanan.');
+    }
+
+    $deleted = false;
+    $records = [];
+    try {
+        $contents = stream_get_contents($fp) ?: '[]';
+        $records  = json_decode($contents, true);
+        if (!is_array($records)) {
+            $records = [];
+        }
+        $kept = [];
+        foreach ($records as $r) {
+            if (($r['id'] ?? null) === $id) {
+                $deleted = true;
+                continue;
+            }
+            $kept[] = $r;
+        }
+        if ($deleted) {
+            $records = $kept;
+            ftruncate($fp, 0);
+            rewind($fp);
+            fwrite($fp, json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n");
+            fflush($fp);
+        }
+    } finally {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+
+    if ($deleted) {
+        storage_rewrite_csv($config, $records);
+    }
+    return $deleted;
+}

@@ -54,10 +54,13 @@ if (($_GET['download'] ?? '') === 'txt') {
     exit;
 }
 
-$old    = [];
-$errors = [];
-$flash  = $_SESSION['flash'] ?? null;
+$old      = [];
+$errors   = [];
+$editing  = null;     // record currently being edited (pre-fill form)
+$flash    = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
+
+$basePath = strtok($_SERVER['REQUEST_URI'], '?');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $token = (string)($_POST['_csrf'] ?? '');
@@ -66,29 +69,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['_form'] = 'Sesi tidak valid. Muat ulang halaman lalu coba lagi.';
         $old = $_POST;
     } else {
+        $action = (string)($_POST['_action'] ?? 'create');
+        $id     = (string)($_POST['_id'] ?? '');
+
+        if ($action === 'delete') {
+            try {
+                $ok = $id !== '' ? storage_delete($config, $id) : false;
+                $_SESSION['flash'] = [
+                    'type'    => $ok ? 'success' : 'error',
+                    'message' => $ok ? 'Data pasien berhasil dihapus.' : 'Data tidak ditemukan.',
+                ];
+            } catch (Throwable $e) {
+                error_log('[index] hapus gagal: ' . $e->getMessage());
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Gagal menghapus data. Coba lagi.'];
+            }
+            header('Location: ' . $basePath . '#daftar');
+            exit;
+        }
+
         [$cleaned, $errors] = validate_patient($_POST);
         if (!$errors) {
             try {
-                $saved      = storage_append($config, $cleaned);
-                $gsheetSent = gsheet_push($config, $saved);
-
-                $_SESSION['flash'] = [
-                    'type'    => 'success',
-                    'message' => $gsheetSent
-                        ? 'Data pasien berhasil disimpan & dikirim ke Google Sheets.'
-                        : (($config['gsheet_webhook_url'] ?? '') !== ''
-                            ? 'Data pasien tersimpan, tapi gagal sync ke Google Sheets. Cek log server.'
-                            : 'Data pasien berhasil disimpan.'),
-                ];
-                header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?') . '#daftar');
+                if ($action === 'update' && $id !== '') {
+                    $updated = storage_update($config, $id, $cleaned);
+                    if ($updated === null) {
+                        $_SESSION['flash'] = ['type' => 'error', 'message' => 'Data tidak ditemukan untuk diperbarui.'];
+                    } else {
+                        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Data pasien berhasil diperbarui.'];
+                    }
+                } else {
+                    $saved      = storage_append($config, $cleaned);
+                    $gsheetSent = gsheet_push($config, $saved);
+                    $_SESSION['flash'] = [
+                        'type'    => 'success',
+                        'message' => $gsheetSent
+                            ? 'Data pasien berhasil disimpan & dikirim ke Google Sheets.'
+                            : (($config['gsheet_webhook_url'] ?? '') !== ''
+                                ? 'Data pasien tersimpan, tapi gagal sync ke Google Sheets. Cek log server.'
+                                : 'Data pasien berhasil disimpan.'),
+                    ];
+                }
+                header('Location: ' . $basePath . '#daftar');
                 exit;
             } catch (Throwable $e) {
                 error_log('[index] simpan gagal: ' . $e->getMessage());
                 $errors['_form'] = 'Terjadi kesalahan saat menyimpan data. Coba lagi.';
                 $old = $cleaned;
+                if ($action === 'update') {
+                    $old['id'] = $id;
+                    $editing   = ['id' => $id];
+                }
             }
         } else {
             $old = $cleaned;
+            if ($action === 'update') {
+                $old['id'] = $id;
+                $editing   = ['id' => $id];
+            }
         }
     }
 }
@@ -96,6 +133,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $records = storage_read_all($config);
 // Show newest first.
 usort($records, fn($a, $b) => strcmp((string)($b['created_at'] ?? ''), (string)($a['created_at'] ?? '')));
+
+// GET ?edit=<id> — load that record into the form for editing.
+if ($editing === null && isset($_GET['edit']) && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $editId = (string)$_GET['edit'];
+    foreach ($records as $r) {
+        if (($r['id'] ?? null) === $editId) {
+            $editing = $r;
+            $old     = $r;
+            break;
+        }
+    }
+}
 
 function e(?string $v): string
 {
@@ -228,11 +277,17 @@ function fmt_tanggal(string $iso): string
 </header>
 
 <!-- Toast -->
-<?php if ($flash): ?>
+<?php if ($flash):
+    $isErr = ($flash['type'] ?? '') === 'error';
+?>
   <div class="mx-auto max-w-6xl px-4 sm:px-6 mt-4">
-    <div class="toast flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-900 shadow-sm">
+    <div class="toast flex items-start gap-3 rounded-2xl border <?= $isErr ? 'border-rose-200 bg-rose-50/90 text-rose-900' : 'border-emerald-200 bg-emerald-50/90 text-emerald-900' ?> p-4 shadow-sm">
       <svg class="h-5 w-5 mt-0.5 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/>
+        <?php if ($isErr): ?>
+          <circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>
+        <?php else: ?>
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/>
+        <?php endif; ?>
       </svg>
       <div class="text-sm font-medium"><?= e($flash['message']) ?></div>
     </div>
@@ -277,7 +332,14 @@ function fmt_tanggal(string $iso): string
               <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
             </svg>
           </span>
-          <h2 class="text-lg font-bold text-slate-900">Form Pendaftaran</h2>
+          <div class="flex-1">
+            <h2 class="text-lg font-bold text-slate-900">
+              <?= $editing ? 'Edit Data Pasien' : 'Form Pendaftaran' ?>
+            </h2>
+            <?php if ($editing): ?>
+              <a href="<?= e($basePath) ?>#form" class="text-xs font-semibold text-rose-600 hover:underline">Batal edit</a>
+            <?php endif; ?>
+          </div>
         </div>
 
         <?php if (!empty($errors['_form'])): ?>
@@ -288,6 +350,10 @@ function fmt_tanggal(string $iso): string
 
         <form method="post" novalidate class="space-y-4">
           <input type="hidden" name="_csrf" value="<?= e($_SESSION['csrf']) ?>">
+          <input type="hidden" name="_action" value="<?= $editing ? 'update' : 'create' ?>">
+          <?php if ($editing): ?>
+            <input type="hidden" name="_id" value="<?= e((string)($editing['id'] ?? '')) ?>">
+          <?php endif; ?>
 
           <div>
             <label for="tanggal" class="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal</label>
@@ -339,7 +405,7 @@ function fmt_tanggal(string $iso): string
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>
             </svg>
-            Simpan Data Pasien
+            <?= $editing ? 'Perbarui Data Pasien' : 'Simpan Data Pasien' ?>
           </button>
         </form>
       </div>
@@ -382,6 +448,26 @@ function fmt_tanggal(string $iso): string
             <details class="mt-2 group">
               <summary class="text-sm text-slate-600 line-clamp-2 group-open:line-clamp-none"><?= e($r['diagnosa']) ?></summary>
             </details>
+            <div class="mt-3 flex items-center gap-2">
+              <a href="<?= e($basePath) ?>?edit=<?= urlencode((string)($r['id'] ?? '')) ?>#form"
+                 class="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
+                <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>
+                </svg>
+                Edit
+              </a>
+              <form method="post" class="inline" onsubmit="return confirm('Hapus data <?= e(addslashes($r['nama'] ?? '')) ?>?');">
+                <input type="hidden" name="_csrf" value="<?= e($_SESSION['csrf']) ?>">
+                <input type="hidden" name="_action" value="delete">
+                <input type="hidden" name="_id" value="<?= e((string)($r['id'] ?? '')) ?>">
+                <button type="submit" class="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50">
+                  <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  </svg>
+                  Hapus
+                </button>
+              </form>
+            </div>
           </article>
         <?php endforeach; ?>
       </div>
@@ -396,6 +482,7 @@ function fmt_tanggal(string $iso): string
                 <th class="px-4 py-3">Nama</th>
                 <th class="px-4 py-3">No. Registrasi</th>
                 <th class="px-4 py-3">Diagnosa</th>
+                <th class="px-4 py-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200/60">
@@ -407,6 +494,28 @@ function fmt_tanggal(string $iso): string
                     <span class="rounded-md bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-700 ring-1 ring-brand-100 font-mono"><?= e($r['no_registrasi']) ?></span>
                   </td>
                   <td class="px-4 py-3 align-top text-slate-600 max-w-md"><?= nl2br(e($r['diagnosa'])) ?></td>
+                  <td class="px-4 py-3 align-top whitespace-nowrap text-right">
+                    <div class="inline-flex items-center gap-2">
+                      <a href="<?= e($basePath) ?>?edit=<?= urlencode((string)($r['id'] ?? '')) ?>#form"
+                         class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">
+                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>
+                        </svg>
+                        Edit
+                      </a>
+                      <form method="post" class="inline" onsubmit="return confirm('Hapus data <?= e(addslashes($r['nama'] ?? '')) ?>?');">
+                        <input type="hidden" name="_csrf" value="<?= e($_SESSION['csrf']) ?>">
+                        <input type="hidden" name="_action" value="delete">
+                        <input type="hidden" name="_id" value="<?= e((string)($r['id'] ?? '')) ?>">
+                        <button type="submit" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50">
+                          <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                          </svg>
+                          Hapus
+                        </button>
+                      </form>
+                    </div>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
